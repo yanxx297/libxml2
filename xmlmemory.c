@@ -133,6 +133,51 @@ static void debugmem_list_delete(MEMHDR *);
 #endif
 
 /**
+ * Heap operations logging 
+ */
+struct memory_op {
+    long type; /* 'm' = malloc, 'f' = free */
+    long arg; /* for malloc, size; for free, alloc position or -1 */
+};
+
+struct memory_op op_trace[200];
+//unsigned long op_trace[100];
+long op_result[200]; /* for malloc, location; for free, -1 */
+int trace_idx = 0;
+
+void *wrap_malloc(size_t size) {
+    void *res;
+    /* assert(trace_idx < sizeof(op_trace)/sizeof(struct memory_op)); */
+//    unsigned char type = 'm';
+//    op_trace[trace_idx] = (size << 8) | type;
+    op_trace[trace_idx].type = 'm';
+    op_trace[trace_idx].arg = size;
+    res = malloc(size);
+    op_result[trace_idx] = (long)res;
+    trace_idx++;
+    return res;
+}
+
+void wrap_free(void *obj) {
+    int alloc_pos = -1;
+    int i;
+    for (i = trace_idx - 1; i >= 0; i--) {
+	if (op_result[i] == (long)obj) {
+	    alloc_pos = i;
+	    break;
+	}
+    }
+
+//    unsigned char type = 'f';
+//    op_trace[trace_idx] = (alloc_pos << 8) | type; 
+    op_trace[trace_idx].type = 'f';
+    op_trace[trace_idx].arg = alloc_pos;
+    op_result[trace_idx] = -1;
+    trace_idx++;
+    free(obj);
+}
+
+/**
  * xmlMallocBreakpoint:
  *
  * Breakpoint to use in conjunction with xmlMemStopAtBlock. When the block
@@ -171,7 +216,7 @@ xmlMallocLoc(size_t size, const char * file, int line)
 
     TEST_POINT
 
-    p = (MEMHDR *) malloc(RESERVE_SIZE+size);
+    p = (MEMHDR *) wrap_malloc(RESERVE_SIZE+size);
 
     if (!p) {
 	xmlGenericError(xmlGenericErrorContext,
@@ -240,7 +285,7 @@ xmlMallocAtomicLoc(size_t size, const char * file, int line)
 
     TEST_POINT
 
-    p = (MEMHDR *) malloc(RESERVE_SIZE+size);
+    p = (MEMHDR *) wrap_malloc(RESERVE_SIZE+size);
 
     if (!p) {
 	xmlGenericError(xmlGenericErrorContext,
@@ -344,11 +389,19 @@ xmlReallocLoc(void *ptr,size_t size, const char * file, int line)
 #endif
     xmlMutexUnlock(xmlMemMutex);
 
-    tmp = (MEMHDR *) realloc(p,RESERVE_SIZE+size);
+    //tmp = (MEMHDR *) realloc(p,RESERVE_SIZE+size);
+
+    tmp = (MEMHDR *)wrap_malloc(RESERVE_SIZE+size);
     if (!tmp) {
-	 free(p);
-	 goto error;
-    }
+	wrap_free(p);
+	goto error;
+    } 
+    else {
+	size_t old = malloc_usable_size(p);
+	memcpy(tmp, p, old<RESERVE_SIZE+size?old:RESERVE_SIZE+size);
+	wrap_free(p);
+    } 
+
     p = tmp;
     if (xmlMemTraceBlockAt == ptr) {
 	xmlGenericError(xmlGenericErrorContext,
@@ -452,7 +505,7 @@ xmlMemFree(void *ptr)
 #endif
     xmlMutexUnlock(xmlMemMutex);
 
-    free(p);
+    wrap_free(p);
 
     TEST_POINT
 
@@ -491,7 +544,7 @@ xmlMemStrdupLoc(const char *str, const char *file, int line)
     if (!xmlMemInitialized) xmlInitMemory();
     TEST_POINT
 
-    p = (MEMHDR *) malloc(RESERVE_SIZE+size);
+    p = (MEMHDR *) wrap_malloc(RESERVE_SIZE+size);
     if (!p) {
       goto error;
     }
