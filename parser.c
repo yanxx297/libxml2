@@ -5485,8 +5485,15 @@ xmlParseEntityDecl(xmlParserCtxtPtr ctxt) {
     xmlChar *orig = NULL;
     int skipped;
 
+    int64_t EntityInt= CUR_PTR[0];
+    for(int i = 1; i < 8; i++){
+	EntityInt <<= 8;
+	EntityInt += CUR_PTR[i]; 
+    }
+
     /* GROW; done in the caller */
-    if (CMP8(CUR_PTR, '<', '!', 'E', 'N', 'T', 'I', 'T', 'Y')) {
+//    if (CMP8(CUR_PTR, '<', '!', 'E', 'N', 'T', 'I', 'T', 'Y')) {
+    if (EntityInt == 0x3c21454e54495459){
 	xmlParserInputPtr input = ctxt->input;
 	SHRINK;
 	SKIP(8);
@@ -6678,8 +6685,15 @@ xmlParseElementDecl(xmlParserCtxtPtr ctxt) {
     int ret = -1;
     xmlElementContentPtr content  = NULL;
 
+    int64_t ElementInt= CUR_PTR[0];
+    for(int i = 1; i < 8; i++){
+	ElementInt <<= 8;
+	ElementInt += CUR_PTR[i]; 
+    }
+
     /* GROW; done in the caller */
-    if (CMP9(CUR_PTR, '<', '!', 'E', 'L', 'E', 'M', 'E', 'N', 'T')) {
+//    if (CMP9(CUR_PTR, '<', '!', 'E', 'L', 'E', 'M', 'E', 'N', 'T')) {
+    if (ElementInt == 0x3c21454c454d454e && CUR_PTR[8] == 'T'){
 	xmlParserInputPtr input = ctxt->input;
 
 	SKIP(9);
@@ -10871,7 +10885,15 @@ xmlParseDocument(xmlParserCtxtPtr ctxt) {
      * (doctypedecl Misc*)?
      */
     GROW;
-    if (CMP9(CUR_PTR, '<', '!', 'D', 'O', 'C', 'T', 'Y', 'P', 'E')) {
+
+    int64_t DoctypeInt = CUR_PTR[0];
+    for(int i = 1; i < 8; i++){
+	DoctypeInt <<= 8;
+	DoctypeInt += CUR_PTR[i]; 
+    }
+
+//    if (CMP9(CUR_PTR, '<', '!', 'D', 'O', 'C', 'T', 'Y', 'P', 'E')) {
+    if (DoctypeInt == 0x3c21444f43545950 && CUR_PTR[8] == 'E'){
 
 	ctxt->inSubset = 1;
 	xmlParseDocTypeDecl(ctxt);
